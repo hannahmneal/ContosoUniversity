@@ -37,6 +37,9 @@
                 @Html.DisplayFor(modelItem => item.EnrollmentDate)
             </td>
             <td>
+                @*
+                                    The tag helper statements below create the URL hyperlinks that match the parameters in Edit, Details, and Delete methods in the StudentController. For example, the Details method is Details(int? id). The parameter is "id" and here, the tag helper is asp-route-id, which makes the HTML version of the link <a href="Students/Edit/1" or whatever the id is. If the tag helper were asp-route-studentID instead of asp-route-id, studentID would be passed in as a query string instead of a parameter because it is not defined on the Details method and the HTML version of the link would be: <a href="Students/Edit?studentID=6">.
+                                *@
                 <a asp-action="Edit" asp-route-id="@item.Id">Edit</a> |
                 <a asp-action="Details" asp-route-id="@item.Id">Details</a> |
                 <a asp-action="Delete" asp-route-id="@item.Id">Delete</a>

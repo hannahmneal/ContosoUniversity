@@ -22,6 +22,9 @@ namespace ContosoUniversity.Controllers
             _context = context;
         }
 
+        //=======================================================================================
+
+
         // GET: Students
         public async Task<IActionResult> Index()
         {
@@ -32,16 +35,25 @@ namespace ContosoUniversity.Controllers
             //NOTE: When writing async code in Entity, only statements that cause queries or commands to be sent to the database are executed asynchronously. That includes ToListAsync, SingleOrDefaultAsync, and SaveChangesAsync. By contrast, statements that just change an IQueryable, such as var students = context.Students.Where(s => s.LastName == "something" do not.
         }
 
+        //=======================================================================================
+
         // GET: Students/Details/5
         public async Task<IActionResult> Details(int? id)
         {
+            //NOTE: The key value that's passed in to the Details method comes from route data. This is data that the model binder found in a segment of the URL. It specifies the controller, action, and id segments. This is found in Startup.cs (" app.UseMvc..." ).
+            //NOTE: The controller is HomeController.cs, action is Index, and the id is the given id. The last part of the URL (?courseID=456) is a query string value. an example of the URL for this is: localhost/Home/Index/1?courseID=456. In the Details method, "id" is passed in as a query string and "courseID=456" could be a second parameter.
             if (id == null)
             {
                 return NotFound();
             }
 
             var student = await _context.Students
+                .Include(s => s.Enrollments)
+                .ThenInclude(e => e.Course)
+                .AsNoTracking()
                 .FirstOrDefaultAsync(m => m.Id == id);
+            //NOTE: FirstOrDefaultAsync asynchronously returns the first element of a sequence, or a default value if the sequence contains no elements. 
+            //NOTE: SingleOrDefaultAsync asynchronously returns only the element of a sequence that satisfies a specified condition or a default value if no such element exists; this method throws an exception if more than one element satisfies the condition. Here, it returns a single Student object. Also, the "Include", ".ThenInclude" and "AsNoTracking" methods are added. Include and .ThenInclude cause the context to laod the Student.Enrollments navigation property (remember, navigation properties hint at foreign keys) and within each enrollment the Enrollment.Course navigation property. AsNoTracking improves performance in scenarios where the entities returned won't be updatd in the current context's lifetime.
             if (student == null)
             {
                 return NotFound();
@@ -50,6 +62,9 @@ namespace ContosoUniversity.Controllers
             return View(student);
         }
 
+        //=======================================================================================
+
+
         // GET: Students/Create
         public IActionResult Create()
         {
@@ -57,20 +72,36 @@ namespace ContosoUniversity.Controllers
         }
 
         // POST: Students/Create
-        // To protect from overposting attacks, please enable the specific properties you want to bind to, for 
-        // more details see http://go.microsoft.com/fwlink/?LinkId=317598.
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Create([Bind("Id,LastName,FirstMidName,EnrollmentDate")] Student student)
+
+        //NOTE: The "Id" was removed from the Bind attribute and a try-catch block was added to the Create method. A model binder refers to the ASP.NET Core MVC functionality that makes it easier for you to work with data submitted by a form. You removed the ID from the Bind attribute because the ID is the primary key value which SQL Server will set automatically when the row is inserted. This is a form - input by the user doesn't set the ID value. For a more in-depth explanation of Bind and how it has a protective effect, see this link: https://docs.microsoft.com/en-us/aspnet/core/data/ef-mvc/crud?view=aspnetcore-2.2
+
+
+        public async Task<IActionResult> Create(
+    [Bind("EnrollmentDate,FirstMidName,LastName")] Student student)
         {
-            if (ModelState.IsValid)
+            try
             {
-                _context.Add(student);
-                await _context.SaveChangesAsync();
-                return RedirectToAction(nameof(Index));
+                if (ModelState.IsValid) //NOTE: This is the form validation
+                {
+                    _context.Add(student);
+                    await _context.SaveChangesAsync();
+                    return RedirectToAction(nameof(Index));
+                }
+            }
+            catch (DbUpdateException /* ex */)
+            {
+                //Log the error (uncomment ex variable name and write a log.
+                ModelState.AddModelError("", "Unable to save changes. " +
+                    "Try again, and if the problem persists " +
+                    "see your system administrator.");
             }
             return View(student);
         }
+
+        //=======================================================================================
+
 
         // GET: Students/Edit/5
         public async Task<IActionResult> Edit(int? id)
@@ -88,43 +119,54 @@ namespace ContosoUniversity.Controllers
             return View(student);
         }
 
+        //NOTE: The code above is the boilerplate edit code. The following shows the best practice to prevent overposting (see link in Details section related to "Bind") and maintain security. It ensures that only changed columns get updated and preserves data in properties that you don't want included for model binding.
+
         // POST: Students/Edit/5
         // To protect from overposting attacks, please enable the specific properties you want to bind to, for 
         // more details see http://go.microsoft.com/fwlink/?LinkId=317598.
-        [HttpPost]
+        [HttpPost, ActionName("Edit")]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Edit(int id, [Bind("Id,LastName,FirstMidName,EnrollmentDate")] Student student)
+        public async Task<IActionResult> EditPost(int? id)
         {
-            if (id != student.Id)
+            if (id == null)
             {
                 return NotFound();
             }
-
-            if (ModelState.IsValid)
+            var studentToUpdate = await _context.Students.FirstOrDefaultAsync(s => s.Id == id);
+            if (await TryUpdateModelAsync<Student>(
+                studentToUpdate,
+                "",
+                s => s.FirstMidName, s => s.LastName, s => s.EnrollmentDate))
             {
                 try
                 {
-                    _context.Update(student);
                     await _context.SaveChangesAsync();
+                    return RedirectToAction(nameof(Index));
                 }
-                catch (DbUpdateConcurrencyException)
+                catch (DbUpdateException /* ex */)
                 {
-                    if (!StudentExists(student.Id))
-                    {
-                        return NotFound();
-                    }
-                    else
-                    {
-                        throw;
-                    }
+                    //Log the error (uncomment ex variable name and write a log.)
+                    ModelState.AddModelError("", "Unable to save changes. " +
+                        "Try again, and if the problem persists, " +
+                        "see your system administrator.");
                 }
-                return RedirectToAction(nameof(Index));
             }
-            return View(student);
+            return View(studentToUpdate);
         }
 
+        //NOTE: See also the alternative HttpPost Edit code (Create and attach) in this link: ( https://docs.microsoft.com/en-us/aspnet/core/data/ef-mvc/crud?view=aspnetcore-2.2 ). The scaffolded code above also uses the create-and-attach approach but only catches DbUpdateConcurrencyException exceptions and returns 404 error codes. The example shown catches any database update exception and displays an error message.
+
+        //=======================================================================================
+
+
+        //=======================================================================================
+
+
         // GET: Students/Delete/5
-        public async Task<IActionResult> Delete(int? id)
+
+        //NOTE: The Delete method requires two operations, as for update and create. The GET request method displays a view that gives the user a chance to approve or cancel the delete operation. If the user approves, the POST request is made and the HttpPost Delete method is called. That is the method that actually performs the delete operation.
+
+        public async Task<IActionResult> Delete(int? id, bool? saveChangesError = false)
         {
             if (id == null)
             {
@@ -132,14 +174,25 @@ namespace ContosoUniversity.Controllers
             }
 
             var student = await _context.Students
+                .AsNoTracking()
                 .FirstOrDefaultAsync(m => m.Id == id);
             if (student == null)
             {
                 return NotFound();
             }
 
+            if (saveChangesError.GetValueOrDefault())
+            {
+                ViewData["ErrorMessage"] =
+                    "Delete failed. Try again, and if the problem persists " +
+                    "see your system administrator.";
+            }
+
             return View(student);
         }
+
+        //=======================================================================================
+
 
         // POST: Students/Delete/5
         [HttpPost, ActionName("Delete")]
@@ -147,14 +200,22 @@ namespace ContosoUniversity.Controllers
         public async Task<IActionResult> DeleteConfirmed(int id)
         {
             var student = await _context.Students.FindAsync(id);
-            _context.Students.Remove(student);
-            await _context.SaveChangesAsync();
-            return RedirectToAction(nameof(Index));
-        }
+            if (student == null)
+            {
+                return RedirectToAction(nameof(Index));
+            }
 
-        private bool StudentExists(int id)
-        {
-            return _context.Students.Any(e => e.Id == id);
+            try
+            {
+                _context.Students.Remove(student);
+                await _context.SaveChangesAsync();
+                return RedirectToAction(nameof(Index));
+            }
+            catch (DbUpdateException /* ex */)
+            {
+                //Log the error (uncomment ex variable name and write a log.)
+                return RedirectToAction(nameof(Delete), new { id = id, saveChangesError = true });
+            }
         }
     }
 }

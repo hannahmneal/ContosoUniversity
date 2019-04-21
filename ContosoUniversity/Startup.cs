@@ -59,6 +59,8 @@ namespace ContosoUniversity
                 routes.MapRoute(
                     name: "default",
                     template: "{controller=Home}/{action=Index}/{id?}");
+                //NOTE: This maps the route. For example, localhost:1234/Home/Index/1?courseID=456
+                //NOTE: The controller is HomeController.cs, action is Index, and the id is the given id. The last part of the URL (?courseID=456) is a query string value. 
             });
         }
     }
