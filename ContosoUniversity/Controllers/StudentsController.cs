@@ -23,16 +23,73 @@ namespace ContosoUniversity.Controllers
         }
 
         //=======================================================================================
-
-
+        //NOTE: Index method prior to implementing page/filter/sort:
+        //----------------------------------------------------------------------------------------------------------
         // GET: Students
-        public async Task<IActionResult> Index()
-        {
-            //NOTE: The Index method gets a list of students from the Students entity set by reading the Students property of the database context instance:
-            return View(await _context.Students.ToListAsync());
-            //NOTE: The Views/Students/Index.cshtml view displays the student list in a table. The "async" keyword tells the compiler to generate callbacks for parts of the method body and to automatically create the Task<IActionResult> object that's returned.  The "await" keyword causes the compiler to split the method into two parts. The first part ends with the operation that's started asynchronously. The second part is put into a callback method that's called when the operation completes. The return type Tast<IActionResult> represents ongoing work with a result of type IActionResult. ToListAsync is the asynchronous version of the ToList extension method.
+        //public async Task<IActionResult> Index()
+        //{
+        //NOTE: The Index method gets a list of students from the Students entity set by reading the Students property of the database context instance:
 
-            //NOTE: When writing async code in Entity, only statements that cause queries or commands to be sent to the database are executed asynchronously. That includes ToListAsync, SingleOrDefaultAsync, and SaveChangesAsync. By contrast, statements that just change an IQueryable, such as var students = context.Students.Where(s => s.LastName == "something" do not.
+
+        //return View(await _context.Students.ToListAsync());
+
+
+        //NOTE: The Views/Students/Index.cshtml view displays the student list in a table. The "async" keyword tells the compiler to generate callbacks for parts of the method body and to automatically create the Task<IActionResult> object that's returned.  The "await" keyword causes the compiler to split the method into two parts. The first part ends with the operation that's started asynchronously. The second part is put into a callback method that's called when the operation completes. The return type Tast<IActionResult> represents ongoing work with a result of type IActionResult. ToListAsync is the asynchronous version of the ToList extension method.
+
+        //NOTE: When writing async code in Entity, only statements that cause queries or commands to be sent to the database are executed asynchronously. That includes ToListAsync, SingleOrDefaultAsync, and SaveChangesAsync. By contrast, statements that just change an IQueryable, such as var students = context.Students.Where(s => s.LastName == "something" do not.
+        //}
+        //----------------------------------------------------------------------------------------------------------
+
+        //Index method after implementing page/filter/sort:
+
+        //GET: Students
+        public async Task<IActionResult> Index(string sortOrder, string searchString)
+            //NOTE: See the difference between this Index method and the one before it: this one uses a sortOrder parameter in the query string in the URL. The parameter will be a string that's either "Name" or "Date", optionally followed by a string "desc" to specify descending order (the default order is ascending). 
+        {
+            ViewData["NameSortParm"] = String.IsNullOrEmpty(sortOrder) ? "name_desc" : "";
+            //NOTE: These are ternary statements. The first one specifies that if the sortOrder param is null/empty, NameSortParam should be set to "name_desc"; otherwise, it should be set to an empty string.
+            ViewData["DateSortParm"] = sortOrder == "Date" ? "date_desc" : "Date";
+
+            ViewData["CurrentFilter"] = searchString;
+            //NOTE: This is the filter parameter.
+
+
+            var students = from s in _context.Students
+                           select s;
+            //NOTE: This (var students) creates an IQueryable variable before the switch statement.
+
+            //note: The two ViewData (NameSortParam and DateSortParam) elements are used by the view to configure the column heading hyperlinks with the appropriate query string values. 
+
+            //NOTE: This if statement goes with searchString and "CurrentFilter". It contains a LINQ WHERE clause that selects only students whose first name or last name contains the search string.
+
+            if (!String.IsNullOrEmpty(searchString))
+            {
+                students = students.Where(s => s.LastName.Contains(searchString)
+                                       || s.FirstMidName.Contains(searchString));
+            }
+            //NOTE: The search string value is received from a text box that is added in the Index view. 
+
+
+            switch (sortOrder)
+            //NOTE: When the user clicks a column heading hyperlink, the appropriate sortOrder value is provided in the query string. The first time the Index page is requested, there's no query string and the students are displayed in ascending order by last name, which is the default as established by the fall-through case in the switch statement.
+            {
+                case "name_desc":
+                    students = students.OrderByDescending(s => s.LastName);
+                    break;
+                case "Date":
+                    students = students.OrderBy(s => s.EnrollmentDate);
+                    break;
+                case "date_desc":
+                    students = students.OrderByDescending(s => s.EnrollmentDate);
+                    break;
+                default:
+                    students = students.OrderBy(s => s.LastName);
+                    break;
+
+                    //NOTE: The IQueryable variable students is modified in the switch statement and calls ToListAsync. When IQueryable variables are created and modified, no query is sent to the database. The query isn't executed until the IQueryable object is converted to a collection by calling a method such as ToListAsync.
+            }
+            //NOTE: This code results in a single query that's not executed until the return View statement.
+            return View(await students.AsNoTracking().ToListAsync());
         }
 
         //=======================================================================================
