@@ -43,16 +43,29 @@ namespace ContosoUniversity.Controllers
         //Index method after implementing page/filter/sort:
 
         //GET: Students
-        public async Task<IActionResult> Index(string sortOrder, string searchString)
+        public async Task<IActionResult> Index(string sortOrder, string currentFilter, string searchString, int? pageNumber)
             //NOTE: See the difference between this Index method and the one before it: this one uses a sortOrder parameter in the query string in the URL. The parameter will be a string that's either "Name" or "Date", optionally followed by a string "desc" to specify descending order (the default order is ascending). 
         {
+            ViewData["CurrentSort"] = sortOrder;
+            //NOTE: This is the currentFilter parameter; it was added in the pagination step.
+
             ViewData["NameSortParm"] = String.IsNullOrEmpty(sortOrder) ? "name_desc" : "";
             //NOTE: These are ternary statements. The first one specifies that if the sortOrder param is null/empty, NameSortParam should be set to "name_desc"; otherwise, it should be set to an empty string.
             ViewData["DateSortParm"] = sortOrder == "Date" ? "date_desc" : "Date";
 
-            ViewData["CurrentFilter"] = searchString;
-            //NOTE: This is the filter parameter.
+            //NOTE: This if statement was added in the pagination setup.:
+            if (searchString != null)
+            {
+                pageNumber = 1;
+            }
+            else
+            {
+                searchString = currentFilter;
+            }
 
+
+            ViewData["CurrentFilter"] = searchString;
+            //NOTE: This is the search search parameter. It was added in the search step.
 
             var students = from s in _context.Students
                            select s;
@@ -68,7 +81,6 @@ namespace ContosoUniversity.Controllers
                                        || s.FirstMidName.Contains(searchString));
             }
             //NOTE: The search string value is received from a text box that is added in the Index view. 
-
 
             switch (sortOrder)
             //NOTE: When the user clicks a column heading hyperlink, the appropriate sortOrder value is provided in the query string. The first time the Index page is requested, there's no query string and the students are displayed in ascending order by last name, which is the default as established by the fall-through case in the switch statement.
@@ -88,9 +100,19 @@ namespace ContosoUniversity.Controllers
 
                     //NOTE: The IQueryable variable students is modified in the switch statement and calls ToListAsync. When IQueryable variables are created and modified, no query is sent to the database. The query isn't executed until the IQueryable object is converted to a collection by calling a method such as ToListAsync.
             }
+
+            //NOTE: This was added in the pagination step:
+            int pageSize = 3;
+
             //NOTE: This code results in a single query that's not executed until the return View statement.
-            return View(await students.AsNoTracking().ToListAsync());
+            //return View(await students.AsNoTracking().ToListAsync());
+
+            //NOTE: This return statement replaced the one directly above in the pagination step:
+            return View(await PaginatedList<Student>.CreateAsync(students.AsNoTracking(), pageNumber ?? 1, pageSize));
         }
+
+
+        //NOTE: This new, filterable, sortable, and searchable code adds a page number parameter, current sort order parameter, and current filter parameter to the method signature. The first time the page is displayed, or if the user hasn't clicked a paging or sorting link, all the parameters will be null. If a paging link is clicked, the page variable will contain the page number to display.
 
         //=======================================================================================
 
